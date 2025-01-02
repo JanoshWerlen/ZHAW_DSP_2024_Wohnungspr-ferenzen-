@@ -1,6 +1,6 @@
 # ZHAW_DSP_2024_Wohnungspr-ferenzen-
 
-Die Webapp kann vie python webapp.py gestaret werden und im lokalen browser verwendet werden. 
+Die Webapp kann via python V.3.12.1 webapp.py gestaret werden und im lokalen browser verwendet werden. 
 Der Datenstand ist vom 21.12.2024.
 
 # Eigener Datenstand
