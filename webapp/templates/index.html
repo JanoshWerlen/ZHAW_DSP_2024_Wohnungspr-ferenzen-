@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Map Filter</title>
+</head>
+<body>
+    <h1>Filter Data for the Map</h1>
+    <form action="/filter" method="POST">
+        <label for="maxprice">Maximum Price:</label>
+        <input type="number" id="maxprice" name="maxprice" required><br><br>
+
+        <label for="property_type">Property Type:</label>
+        <select id="property_type" name="property_type" required>
+            <option value="1">Type 1</option>
+            <option value="2">Type 2</option>
+            <option value="3">Type 3</option>
+        </select><br><br>
+
+        <button type="submit">Generate Map</button>
+    </form>
+</body>
+</html>
+

@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dynamic Map Filter</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/leaflet.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/leaflet.css" />
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            background-color: #f9f9f9;
+        }
+
+        header {
+            background-color: #0056b3;
+            color: white;
+            padding: 10px 20px;
+            text-align: center;
+            font-size: 1.5rem;
+        }
+
+        .container {
+            display: flex;
+            flex: 1;
+            height: calc(100vh - 50px); /* Adjust height for header */
+            overflow: hidden;
+        }
+
+        .filters {
+            width: 20%;
+            background-color: #ffffff;
+            box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            box-sizing: border-box;
+            overflow-y: auto;
+        }
+
+        .filters label {
+            font-weight: bold;
+            display: block;
+            margin-top: 10px;
+        }
+
+        .filters input,
+        .filters select,
+        .filters button {
+            width: 100%;
+            padding: 8px;
+            margin-top: 5px;
+            margin-bottom: 15px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 1rem;
+        }
+
+        .filters button {
+            background-color: #0056b3;
+            color: white;
+            cursor: pointer;
+            border: none;
+        }
+
+        .filters button:hover {
+            background-color: #003d80;
+        }
+
+        #map-container {
+            flex: 2;
+            position: relative;
+        }
+
+        #map {
+            width: 100%;
+            height: 100%;
+        }
+
+        #plz-list {
+            width: 20%;
+            background-color: #ffffff;
+            box-shadow: -2px 0 5px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            box-sizing: border-box;
+            overflow-y: auto;
+        }
+
+        #plz-list h2 {
+            font-size: 1.2rem;
+            margin-top: 0;
+        }
+
+        #plz-list ul {
+            list-style: none;
+            padding: 0;
+        }
+
+        #plz-list li {
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+            font-size: 1rem;
+        }
+
+        #plz-list li:last-child {
+            border-bottom: none;
+        }
+    </style>
+</head>
+<body>
+    <header>Dynamic Map Filter- Datenstand 21.12.2024</header>
+    <div class="container">
+        <div class="filters">
+            <h3>Filters</h3>
+            <label for="maxprice">Max Price:</label>
+            <select id="maxprice">
+                <option value="">No Filter</option>
+                <option value="500">500</option>
+                <option value="1000">1000</option>
+                <option value="1500">1500</option>
+                <option value="2000">2000</option>
+            </select>
+            <label for="property_type">Property Type:</label>
+            <select id="property_type">
+                <option value="">No Filter</option>
+                <option value="1">Wohnung</option>
+                <option value="3">WG-Zimmer</option>
+            </select>
+            <label for="duration">Max Duration (Minutes):</label>
+            <input type="number" id="duration" placeholder="No Filter" />
+            <label for="university">University:</label>
+            <select id="university">
+                <option value="">No Filter</option>
+                <!-- Dynamic options will be populated here -->
+            </select>
+            <label for="transfers">Max Transfers (incl. "Walking"):</label>
+            <input type="number" id="transfers" placeholder="No Filter" />
+            <button id="filter-btn">Apply Filters</button>
+        </div>
+        <div id="map-container">
+            <div id="map"></div>
+        </div>
+        <div id="plz-list">
+            <h2>PLZ with Most Listings</h2>
+            <ul id="plz-list-content"></ul>
+        </div>
+    </div>
+
+    <script>
+        let map = L.map("map").setView([46.8, 8.3], 8);
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+            maxZoom: 19,
+        }).addTo(map);
+
+        let markersLayer = L.layerGroup().addTo(map);
+
+        function loadUniversities() {
+            $.getJSON("/universities", function (data) {
+                const universitySelect = document.getElementById("university");
+                universitySelect.innerHTML = "<option value=''>No Filter</option>";
+                data.forEach((university) => {
+                    const option = document.createElement("option");
+                    option.value = university;
+                    option.textContent = university;
+                    universitySelect.appendChild(option);
+                });
+            });
+        }
+
+        function loadFilteredData() {
+    const maxprice = document.getElementById("maxprice").value;
+    const propertyType = document.getElementById("property_type").value;
+    const duration = document.getElementById("duration").value;
+    const university = document.getElementById("university").value;
+    const transfers = document.getElementById("transfers").value;
+
+    let query = "/filter?";
+    if (maxprice) query += `maxprice=${maxprice}&`;
+    if (propertyType) query += `property_type=${propertyType}&`;
+    if (duration) query += `duration=${duration}&`;
+    if (university) query += `university=${university}&`;
+    if (transfers) query += `transfers=${transfers}&`;
+
+    query = query.slice(0, -1);
+
+    $.getJSON(query, function (data) {
+        const mapData = data.map_data;
+        const plzListings = data.plz_listings;
+
+        // Update map markers
+        markersLayer.clearLayers();
+        L.geoJSON(mapData, {
+            pointToLayer: function (feature, latlng) {
+                const color = feature.properties.marker_color || "blue";
+                return L.circleMarker(latlng, {
+                    radius: 8,
+                    fillColor: color,
+                    color: color,
+                    weight: 1,
+                    opacity: 1,
+                    fillOpacity: 0.8,
+                });
+            },
+            onEachFeature: function (feature, layer) {
+                const props = feature.properties;
+                layer.bindPopup(
+                    `<b>${props.tag}</b><br>PLZ: ${props.plz}<br>Duration: ${props.duration} min<br>` +
+                    `Transfers: ${props.transfers}<br>` +
+                    (props.filtered_listings_WG ? `WG Listings: ${props.filtered_listings_WG}<br>` : "No Listings<br>") +
+                    `University: ${props.university}<br>Type: ${props.property_type}`
+                );
+            },
+        }).addTo(markersLayer);
+
+        // Update PLZ list
+        const plzListContent = document.getElementById("plz-list-content");
+        plzListContent.innerHTML = "";
+
+        // Filter for listings greater than 0
+        const validPlzListings = plzListings.filter(entry => entry.total_listings > 0);
+
+        validPlzListings.forEach((entry) => {
+    const listItem = document.createElement("li");
+    listItem.innerHTML = `${entry.plz} ${entry.ort}<br>Angebote: ${entry.total_listings}`;
+    plzListContent.appendChild(listItem);
+});
+
+
+    });
+}
+
+
+        document.getElementById("filter-btn").addEventListener("click", loadFilteredData);
+        loadFilteredData();
+        loadUniversities();
+    </script>
+</body>
+</html>
